@@ -4,7 +4,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Explicit",
+            "name": "Launch Login",
             "program": "${workspaceRoot}/examples/explicit.js",
             "protocol": "inspector",
             "env": {
