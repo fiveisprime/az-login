@@ -1,6 +1,6 @@
 # az-login
 
-A simple helper utlity for logging into an Azure account from Node.js
+A helper module that provides a simplified way to add Azure authentication to a Node.js app. It provides an opinionated solution for easily getting started, along with the neccessary support to control behavior if/as your needs mature.
 
 ## Getting Started
 
@@ -27,8 +27,6 @@ Optionally, if you'd like to create a service principal explicitly, and have `az
 * **azureServicePrincipalClientId / ARM_CLIENT_ID** - The name of the service principal
 * **azureServicePrincipalPassword / ARM_CLIENT_SECRET** - The password of the service principal
 * **azureServicePrincipalTenantId / ARM_TENANT_ID** - The ID of the tenant that the service principal was created in
-
-This way, `az-login` provides a super simple getting started experience, without preventing apps from having more control.
 
 If at some later point, you'd like to clear all local auth state from the current machine, you can import and call the `logout` method:
 
