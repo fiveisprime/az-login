@@ -10,14 +10,14 @@ const CONTRIBUTOR_ROLE_ID = "b24988ac-6180-42a0-ab88-20f7382dd24c";
 const AZ_CLI_PROFILE_FILE = path.join(CONFIG_DIRECTORY, "azureProfile.json");
 const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrincipal.json");
 
-function authenticate(explicitClientId, explicitClientSecret, explicitTenantId) {
+function authenticate(servicePrincipal) {
     return new Promise((resolve, reject) => {
         let interactive = false;
 
         // Support the same env vars that the Serverless (azure*) and Terraform (ARM*) CLIs expect
-        const clientId = explicitClientId || process.env.azureServicePrincipalClientId || process.env.ARM_CLIENT_ID;
-        const clientSecret = explicitClientSecret || process.env.azureServicePrincipalPassword || process.env.ARM_CLIENT_SECRET;
-        const tenantId = explicitTenantId || process.env.azureServicePrincipalTenantId || process.env.ARM_TENANT_ID;
+        const clientId = servicePrincipal.clientId || process.env.azureServicePrincipalClientId || process.env.ARM_CLIENT_ID;
+        const clientSecret = servicePrincipal.clientSecret || process.env.azureServicePrincipalPassword || process.env.ARM_CLIENT_SECRET;
+        const tenantId = servicePrincipal.tenantId || process.env.azureServicePrincipalTenantId || process.env.ARM_TENANT_ID;
 
         if (clientId && clientSecret && tenantId) {
             try {
@@ -47,7 +47,7 @@ function authenticate(explicitClientId, explicitClientSecret, explicitTenantId) 
                 const [code] = message.match(/[A-Z0-9]{7,}/);
                 require("copy-paste").copy(code);
 
-                console.log(message);
+                console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
                 require("opn")("https://aka.ms/devicelogin");
             };
 
@@ -191,11 +191,10 @@ function selectSubscription(subscriptions, subscriptionId, promptForSubscription
 }
 
 exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, promptForSubscription = promptForSubscriptionInternal } = {}) => {
-    let state = {};
+    let state;
 
-    return authenticate(clientId, clientSecret, tenantId).then(({ credentials, interactive, subscriptions }) => {
-        state.credentials = credentials;
-        state.interactive = interactive;
+    return authenticate({ clientId, clientSecret, tenantId }).then(({ credentials, interactive, subscriptions }) => {
+        state = { accessToken: credentials.tokenCache._entries[0], credentials, interactive };
 
         return selectSubscription(subscriptions, subscriptionId, promptForSubscription);
     }).then(({ id, tenantId }) => {
@@ -203,16 +202,8 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, promptForSu
 
         if (state.interactive) {
             return createServicePrincipal(state.credentials, tenantId, id);
-        } else {
-            return Promise.resolve();
         }
-    }).then(() => {
-        return {
-            accessToken: state.credentials.tokenCache._entries[0],
-            credentials: state.credentials,
-            subscriptionId: state.subscriptionId
-        };
-    });
+    }).then(() => state);
 };
 
 exports.logout = () => {

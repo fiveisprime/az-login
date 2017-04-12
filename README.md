@@ -55,7 +55,7 @@ login(options? : LoginOptions): Promise<LoginResult>
 
 #### LoginOptions
 
-While the primary use case of the `login` method is to call it without any arguments, it takes an optional config object, that allows one or more of the following properties to be specified on it:
+While the primary use case of the `login` method is to call it without any arguments, it takes an optional config object, that allows specifying the Azure service principal via the following properties (all of which must be set, if any of them are set):
 
 * *clientId* - The ID/username of the service principal that should be used to authenticate with Azure.
 
