@@ -134,7 +134,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
     });
 };
 
-function promptForSubscriptionInternal(subscriptions) {
+function promptForSubscription(subscriptions) {
     const inquirer = require("inquirer");
 
     return inquirer.prompt([{
@@ -149,7 +149,7 @@ function promptForSubscriptionInternal(subscriptions) {
     });
 }
 
-function selectSubscription(subscriptions, subscriptionId, promptForSubscription) {
+function selectSubscription(subscriptions, subscriptionId, subscriptionResolver) {
     if (subscriptionId) {
         return promiseForSubscription(subscriptionId);
     }
@@ -174,8 +174,10 @@ function selectSubscription(subscriptions, subscriptionId, promptForSubscription
                     } catch (error) {
                         return Promise.reject(error);
                     }
+                } else if (subscriptionResolver) {
+                    return subscriptionResolver(subscriptions);
                 } else {
-                    return promptForSubscription(subscriptions);
+                    return Promise.reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
                 }
             };
     }
@@ -190,13 +192,21 @@ function selectSubscription(subscriptions, subscriptionId, promptForSubscription
     }
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, promptForSubscription = promptForSubscriptionInternal } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, subscriptionResolver } = {}) => {
     let state;
 
     return authenticate({ clientId, clientSecret, tenantId }).then(({ credentials, interactive, subscriptions }) => {
-        state = { accessToken: credentials.tokenCache._entries[0], credentials, interactive };
+        state = {
+            accessToken: credentials.tokenCache._entries[0].accessToken,
+            credentials,
+            interactive
+        };
 
-        return selectSubscription(subscriptions, subscriptionId, promptForSubscription);
+        if (!subscriptionResolver && process.stdout.isTTY) {
+            subscriptionResolver = promptForSubscription;
+        }
+
+        return selectSubscription(subscriptions, subscriptionId, subscriptionResolver);
     }).then(({ id, tenantId }) => {
         state.subscriptionId = id;
 
