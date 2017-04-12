@@ -1,6 +1,6 @@
 # az-login
 
-A helper module that provides a simplified way to add Azure authentication to a Node.js app. It provides an opinionated solution for easily getting started, along with the neccessary support to control behavior if/as your needs mature.
+A helper module that provides a simplified way to add Azure authentication to a Node.js app. It provides an opinionated solution for easily getting started, along with the ability to customize its behavior as neccessary. 
 
 ## Getting Started
 
