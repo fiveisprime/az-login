@@ -215,11 +215,20 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, promptForSu
     });
 };
 
-exports.logout = (failOnMissingServicePrincipal = false) => {
-    if (fse.existsSync(SERVICE_PRINCIPAL_FILE)) {
-        fse.unlinkSync(SERVICE_PRINCIPAL_FILE);
-        return Promise.resolve();
-    } else if (failOnMissingServicePrincipal) {
-        return Promise.reject(new Error("No login session was found"));
-    }
+exports.logout = () => {
+    return new Promise((resolve, reject) => {
+        fse.exists(SERVICE_PRINCIPAL_FILE, (exists) => {
+            if (!exists) {
+                return resolve();
+            }
+
+            fse.unlink(SERVICE_PRINCIPAL_FILE, (error) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            });
+        })
+    });
 };
