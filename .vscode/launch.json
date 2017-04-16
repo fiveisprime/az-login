@@ -5,7 +5,7 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Login",
-            "program": "${workspaceRoot}/examples/explicit.js",
+            "program": "${workspaceRoot}/examples/index.js",
             "protocol": "inspector",
             "env": {
                 "azureServicePrincipalClientId": ""

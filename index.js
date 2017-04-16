@@ -3,21 +3,20 @@ const fse = require("fs-extra");
 const os = require("os");
 const path = require("path");
 const { generateUuid } = azure;
+const { env } = process;
 
 const CONFIG_DIRECTORY = path.join(os.homedir(), ".azure");
 const CONTRIBUTOR_ROLE_ID = "b24988ac-6180-42a0-ab88-20f7382dd24c";
+const INTERACTIVE_LOGIN_URL = "https://aka.ms/devicelogin";
 
 const AZ_CLI_PROFILE_FILE = path.join(CONFIG_DIRECTORY, "azureProfile.json");
 const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrincipal.json");
 
-function authenticate(servicePrincipal) {
+function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_CLIENT_ID,
+                        clientSecret = env.azureServicePrincipalPassword || env.ARM_CLIENT_SECRET,
+                        tenantId = env.azureServicePrincipalTenantId || env.ARM_TENANT_ID }) {
     return new Promise((resolve, reject) => {
         let interactive = false;
-
-        // Support the same env vars that the Serverless (azure*) and Terraform (ARM*) CLIs expect
-        const clientId = servicePrincipal.clientId || process.env.azureServicePrincipalClientId || process.env.ARM_CLIENT_ID;
-        const clientSecret = servicePrincipal.clientSecret || process.env.azureServicePrincipalPassword || process.env.ARM_CLIENT_SECRET;
-        const tenantId = servicePrincipal.tenantId || process.env.azureServicePrincipalTenantId || process.env.ARM_TENANT_ID;
 
         if (clientId && clientSecret && tenantId) {
             try {
@@ -48,7 +47,7 @@ function authenticate(servicePrincipal) {
                 require("copy-paste").copy(code);
 
                 console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
-                require("opn")("https://aka.ms/devicelogin");
+                require("opn")(INTERACTIVE_LOGIN_URL);
             };
 
             interactive = true;
@@ -61,12 +60,12 @@ function authenticate(servicePrincipal) {
     });
 }
 
-function createServicePrincipal(credentials, tenantId, subscriptionId) {
-    const authorization = require("azure-arm-authorization");
-    const graph = require("azure-graph");   
-    const moment = require("moment"); 
-    
+function createServicePrincipal(credentials, tenantId, subscriptionId) {    
     return new Promise((resolve, reject) => {
+        const authorization = require("azure-arm-authorization");
+        const graph = require("azure-graph");   
+        const moment = require("moment"); 
+
         const credentialOptions = {
             domain: tenantId,
             tokenAudience: "graph",
@@ -141,15 +140,15 @@ function promptForSubscription(subscriptions) {
         name: "subscriptionId",
         message: "Select the Azure subscription you would like to use",
         type: "list",
-        choices: subscriptions.map(({ name, id }) => {
-            return { name, value: id };
+        choices: subscriptions.map(({ name, value = id }) => {
+            return { name, value };
         })
     }]).then((answers) => {
         return subscriptions.find(({ id }) => id === answers.subscriptionId);
     });
 }
 
-function selectSubscription(subscriptions, subscriptionId, subscriptionResolver) {
+function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || env.ARM_SUBSCRIPTION_ID, subscriptionResolver) {
     if (subscriptionId) {
         return promiseForSubscription(subscriptionId);
     }
@@ -162,24 +161,18 @@ function selectSubscription(subscriptions, subscriptionId, subscriptionResolver)
             return Promise.resolve(subscriptions[0]);
 
         default:
-            let subscriptionId = process.env.azureSubId || process.env.ARM_SUBSCRIPTION_ID;
-            
-            if (subscriptionId) {
-                return promiseForSubscription(subscriptionId);
-            } else {
-                if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
-                    try {
-                        const profile = fse.readJsonSync(AZ_CLI_PROFILE_FILE);
-                        return promiseForSubscription(profile.subscriptions.find((sub) => sub.isDefault).id);
-                    } catch (error) {
-                        return Promise.reject(error);
-                    }
-                } else if (subscriptionResolver) {
-                    return subscriptionResolver(subscriptions);
-                } else {
-                    return Promise.reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
+            if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
+                try {
+                    const profile = fse.readJsonSync(AZ_CLI_PROFILE_FILE);
+                    return promiseForSubscription(profile.subscriptions.find((sub) => sub.isDefault).id);
+                } catch (error) {
+                    return Promise.reject(error);
                 }
-            };
+            } else if (subscriptionResolver) {
+                return subscriptionResolver(subscriptions);
+            } else {
+                return Promise.reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
+            }
     }
 
     function promiseForSubscription(subscriptionId) {
@@ -196,38 +189,54 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, subscriptio
     let state;
 
     return authenticate({ clientId, clientSecret, tenantId }).then(({ credentials, interactive, subscriptions }) => {
+        const accessToken = credentials.tokenCache._entries[0].accessToken;
+
         state = {
-            accessToken: credentials.tokenCache._entries[0].accessToken,
+            accessToken,
             credentials,
             interactive
         };
+
+        // If the consuming app is using request, that return a specialized
+        // version of it, that comes pre-configured with the right bearer
+        // token to begin making Azure REST API calls with.
+        if (require.resolve("request")) {
+            state.request = require("request").defaults({
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            });
+        }
 
         if (!subscriptionResolver && process.stdout.isTTY) {
             subscriptionResolver = promptForSubscription;
         }
 
-        return selectSubscription(subscriptions, subscriptionId, subscriptionResolver);
+        return resolveSubscription(subscriptions, subscriptionId, subscriptionResolver);
     }).then(({ id, tenantId }) => {
         state.subscriptionId = id;
+        state.clientFactory = (clientConstructor) => Reflect.construct(clientConstructor, [state.credentials, id]);
 
         if (state.interactive) {
-            return createServicePrincipal(state.credentials, tenantId, id);
+            createServicePrincipal(state.credentials, tenantId, id);
         }
-    }).then(() => state);
+
+        return state;
+    });
 };
 
 exports.logout = () => {
     return new Promise((resolve, reject) => {
         fse.exists(SERVICE_PRINCIPAL_FILE, (exists) => {
             if (!exists) {
-                return resolve();
+                return resolve(false);
             }
 
             fse.unlink(SERVICE_PRINCIPAL_FILE, (error) => {
                 if (error) {
                     reject(error);
                 } else {
-                    resolve();
+                    resolve(true);
                 }
             });
         })
