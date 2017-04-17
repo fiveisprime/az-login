@@ -1,6 +1,6 @@
 # Azure Login (az-login)
 
-Provides a simple way to add Azure authentication to a Node.js app. It is meant to compliment the already awesome [Azure SDK for Node](https://github.com/Azure/azure-sdk-for-node) (which provides the actual client APIs for managing Azure resources), by means of an opinionated and exploratory login experience.
+Provides a simple way to add Azure authentication to a Node.js-based automation script, management CLI, VS Code extension, etc. It is meant to compliment the already awesome [Azure SDK for Node](https://github.com/Azure/azure-sdk-for-node) (which provides the actual client APIs for managing Azure resources), by means of an opinionated and exploratory login experience.
 
 ## Getting Started
 
