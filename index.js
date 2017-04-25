@@ -12,9 +12,14 @@ const INTERACTIVE_LOGIN_URL = "https://aka.ms/devicelogin";
 const AZ_CLI_PROFILE_FILE = path.join(CONFIG_DIRECTORY, "azureProfile.json");
 const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrincipal.json");
 
+const DEFAULT_INTERACTIVE_LOGIN_HANDLER = (code) => {
+    console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
+};
+
 function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_CLIENT_ID,
                         clientSecret = env.azureServicePrincipalPassword || env.ARM_CLIENT_SECRET,
-                        tenantId = env.azureServicePrincipalTenantId || env.ARM_TENANT_ID }) {
+                        tenantId = env.azureServicePrincipalTenantId || env.ARM_TENANT_ID,
+                        interactiveLoginHandler = DEFAULT_INTERACTIVE_LOGIN_HANDLER }) {
     return new Promise((resolve, reject) => {
         let interactive = false;
 
@@ -42,15 +47,17 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
         }
         
         function loginInteractively() {
+            interactive = true;
+
             const userCodeResponseLogger = (message) => {
-                const [code] = message.match(/[A-Z0-9]{7,}/);
+                const [code] = message.match(/[A-Z0-9]{9,}/);
                 require("copy-paste").copy(code);
 
-                console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
+                interactiveLoginHandler(code);
+
                 require("opn")(INTERACTIVE_LOGIN_URL);
             };
 
-            interactive = true;
             azure.interactiveLogin({ userCodeResponseLogger }, resolvePromise);
         }
 
@@ -185,10 +192,10 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     }
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, subscriptionResolver } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver } = {}) => {
     let state;
 
-    return authenticate({ clientId, clientSecret, tenantId }).then(({ credentials, interactive, subscriptions }) => {
+    return authenticate({ clientId, clientSecret, tenantId, interactiveLoginHandler }).then(({ credentials, interactive, subscriptions }) => {
         const accessToken = credentials.tokenCache._entries[0].accessToken;
 
         state = {
