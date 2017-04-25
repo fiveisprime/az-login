@@ -55,7 +55,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
 
                 interactiveLoginHandler(code);
 
-                require("opn")(INTERACTIVE_LOGIN_URL);
+                require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
             };
 
             azure.interactiveLogin({ userCodeResponseLogger }, resolvePromise);
