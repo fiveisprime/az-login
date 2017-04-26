@@ -84,7 +84,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
         const graphCredentials = new azure.DeviceTokenCredentials(credentialOptions);
         const graphClient = new graph(graphCredentials, tenantId);
 
-        const servicePrincipalName = `http://${generateUuid()}.azlogin`;
+        const servicePrincipalName = `http://${generateUuid()}`;
         const servicePrincipalPassword = generateUuid();
         
         const applicationOptions = {
@@ -116,7 +116,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
                 }
 
                 const { roleAssignments } = new authorization(credentials, subscriptionId);
-                const scope = `/subscriptions/${subscriptionId}`;
+                const scope = `subscriptions/${subscriptionId}`;
                 const roleDefinitionId = `${scope}/providers/Microsoft.Authorization/roleDefinitions/${CONTRIBUTOR_ROLE_ID}`;
 
                 const roleAssignmentOptions = {
@@ -127,14 +127,16 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
                     }
                 };
 
-                roleAssignments.create(scope, generateUuid(), roleAssignmentOptions, (error) => {
-                    if (error) { 
-                        return reject(error);
-                    }
-                    
-                    fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, secret: servicePrincipalPassword, tenantId });
-                    resolve();
-                });
+                !function createRoleAssignment() { 
+                    roleAssignments.create(scope, generateUuid(), roleAssignmentOptions).then(() => {
+                        fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, secret: servicePrincipalPassword, tenantId });
+                        resolve();
+                    }).catch(() => {
+                        // This can fail due to the SP not having
+                        // be fully created yet, so try again.
+                        setTimeout(createRoleAssignment, 1000);
+                    })
+                }();
             });
         });
     });
@@ -225,11 +227,9 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactive
         state.clientFactory = (clientConstructor) => Reflect.construct(clientConstructor, [state.credentials, id]);
 
         if (state.interactive) {
-            createServicePrincipal(state.credentials, tenantId, id);
+            return createServicePrincipal(state.credentials, tenantId, id);
         }
-
-        return state;
-    });
+    }).then(() => { return state; });
 };
 
 exports.logout = () => {
