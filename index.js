@@ -143,14 +143,12 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
 };
 
 function promptForSubscription(subscriptions) {
-    const inquirer = require("inquirer");
-
-    return inquirer.prompt([{
+    return require("inquirer").prompt([{
         name: "subscriptionId",
         message: "Select the Azure subscription you would like to use",
         type: "list",
-        choices: subscriptions.map(({ name, value = id }) => {
-            return { name, value };
+        choices: subscriptions.map((subscription) => {
+            return { name: subscription.name, value: subscription.id };
         })
     }]).then((answers) => {
         return subscriptions.find(({ id }) => id === answers.subscriptionId);
