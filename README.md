@@ -75,7 +75,7 @@ While the primary use case of the `login` method is to call it without any argum
         // complete the authentication process in the browser that will be launched
     }});
 
-* *subscriptionId* - The ID of the subscription that should be auto-selected for managing the Azure account. Setting this "disables" the logic for attempting to resolve a subscription ID automatically and/or prompting the user for a seelction.
+* *subscriptionId* - The ID of the subscription that should be auto-selected for managing the Azure account. Setting this "disables" the logic for attempting to resolve a subscription ID automatically and/or prompting the user for a selection.
 
 * *tenantId* - The ID of the Azure Active Directory (AAD) tenant that the specified service principal is defined within.
 
