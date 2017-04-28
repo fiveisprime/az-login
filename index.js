@@ -1,5 +1,6 @@
 const azure = require("ms-rest-azure");
 const fse = require("fs-extra");
+const keytar = require("keytar");
 const os = require("os");
 const path = require("path");
 const { generateUuid } = azure;
@@ -11,6 +12,8 @@ const INTERACTIVE_LOGIN_URL = "https://aka.ms/devicelogin";
 
 const AZ_CLI_PROFILE_FILE = path.join(CONFIG_DIRECTORY, "azureProfile.json");
 const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrincipal.json");
+
+const { name: SERVICE_NAME } = require("./package.json");
 
 const DEFAULT_INTERACTIVE_LOGIN_HANDLER = (code) => {
     console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
@@ -31,21 +34,29 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
             }
         } else {
             if (fse.existsSync(SERVICE_PRINCIPAL_FILE)) {                
-                const { id, secret, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);  
-
-                try {     
-                    azure.loginWithServicePrincipalSecret(id, secret, tenantId, resolvePromise); 
-                } catch (error) {
-                    // The SP is either invalid or expired, but since the end-user doesn't
-                    // know about this file, let's simply delete it and move on to interactive auth.
-                    fse.removeSync(SERVICE_PRINCIPAL_FILE);
-                    loginInteractively();
-                }
+                const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);  
+                
+                keytar.getPassword(SERVICE_NAME, id).then((secret) => {
+                    if (secret) {
+                        try {     
+                            azure.loginWithServicePrincipalSecret(id, secret, tenantId, resolvePromise); 
+                        } catch (error) {
+                            // The SP is either invalid or expired, but since the end-user doesn't
+                            // know about this file, let's simply delete it and move on to interactive auth.
+                            fse.removeSync(SERVICE_PRINCIPAL_FILE);
+                            keytar.deletePassword(SERVICE_NAME, id).then(loginInteractively);
+                        }
+                    } else {
+                        // The secret has been deleted, while the SP file still exists...
+                        fse.removeSync(SERVICE_PRINCIPAL_FILE);
+                        loginInteractively();
+                    }
+                });
             } else {
                 loginInteractively();
-            }
+            }   
         }
-        
+
         function loginInteractively() {
             interactive = true;
 
@@ -89,7 +100,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
         
         const applicationOptions = {
             availableToOtherTenants: false,
-            displayName: "az-login",
+            displayName: SERVICE_NAME,
             homepage: servicePrincipalName,
             identifierUris: [servicePrincipalName],
             passwordCredentials: [{
@@ -129,8 +140,8 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
 
                 !function createRoleAssignment() { 
                     roleAssignments.create(scope, generateUuid(), roleAssignmentOptions).then(() => {
-                        fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, secret: servicePrincipalPassword, tenantId });
-                        resolve();
+                        fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, tenantId });
+                        keytar.setPassword(SERVICE_NAME, sp.appId, servicePrincipalPassword).then(resolve);
                     }).catch(() => {
                         // This can fail due to the SP not having
                         // be fully created yet, so try again.
@@ -194,7 +205,6 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
 
 exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver } = {}) => {
     let state;
-
     return authenticate({ clientId, clientSecret, tenantId, interactiveLoginHandler }).then(({ credentials, interactive, subscriptions }) => {
         const accessToken = credentials.tokenCache._entries[0].accessToken;
 
@@ -222,7 +232,11 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactive
         return resolveSubscription(subscriptions, subscriptionId, subscriptionResolver);
     }).then(({ id, tenantId }) => {
         state.subscriptionId = id;
-        state.clientFactory = (clientConstructor) => Reflect.construct(clientConstructor, [state.credentials, id]);
+        state.clientFactory = (clientConstructor) => { 
+            const client = Reflect.construct(clientConstructor, [state.credentials, id]);
+            client.addUserAgentInfo(SERVICE_NAME);
+            return client;
+        };
 
         if (state.interactive) {
             return createServicePrincipal(state.credentials, tenantId, id);
