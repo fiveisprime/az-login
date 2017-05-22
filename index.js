@@ -33,13 +33,13 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 reject(new Error("The specified Azure credentials don't appear to be valid. Please check them and try authenticating again"));
             }
         } else {
-            if (fse.existsSync(SERVICE_PRINCIPAL_FILE)) {                
-                const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);  
-                
+            if (fse.existsSync(SERVICE_PRINCIPAL_FILE)) {
+                const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);
+
                 keytar.getPassword(SERVICE_NAME, id).then((secret) => {
                     if (secret) {
-                        try {     
-                            azure.loginWithServicePrincipalSecret(id, secret, tenantId, resolvePromise); 
+                        try {
+                            azure.loginWithServicePrincipalSecret(id, secret, tenantId, resolvePromise);
                         } catch (error) {
                             // The SP is either invalid or expired, but since the end-user doesn't
                             // know about this file, let's simply delete it and move on to interactive auth.
@@ -54,7 +54,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 });
             } else {
                 loginInteractively();
-            }   
+            }
         }
 
         function loginInteractively() {
@@ -78,11 +78,11 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
     });
 }
 
-function createServicePrincipal(credentials, tenantId, subscriptionId) {    
+function createServicePrincipal(credentials, tenantId, subscriptionId) {
     return new Promise((resolve, reject) => {
         const authorization = require("azure-arm-authorization");
-        const graph = require("azure-graph");   
-        const moment = require("moment"); 
+        const graph = require("azure-graph");
+        const moment = require("moment");
 
         const credentialOptions = {
             domain: tenantId,
@@ -97,7 +97,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
 
         const servicePrincipalName = `http://${generateUuid()}`;
         const servicePrincipalPassword = generateUuid();
-        
+
         const applicationOptions = {
             availableToOtherTenants: false,
             displayName: SERVICE_NAME,
@@ -138,7 +138,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
                     }
                 };
 
-                !function createRoleAssignment() { 
+                !function createRoleAssignment() {
                     roleAssignments.create(scope, generateUuid(), roleAssignmentOptions).then(() => {
                         fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, tenantId });
                         keytar.setPassword(SERVICE_NAME, sp.appId, servicePrincipalPassword).then(resolve);
@@ -182,7 +182,7 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
         } else {
             return Promise.reject(`The specified subscription ID isn't associated with your Azure account: ${subscriptionId}`);
         }
-    } else if (subscriptions.length === 1) {  
+    } else if (subscriptions.length === 1) {
         return Promise.resolve(subscriptions[0]);
     } else if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
         // If the user has Az CLI installed, which is configured with a default
@@ -193,8 +193,8 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
             return Promise.resolve(defaultSubscription)
         }
     }
-    
-    // There's no way to infer the user's preferred subscription, 
+
+    // There's no way to infer the user's preferred subscription,
     // so we have to prompt them to select one
     if (subscriptionResolver) {
         return subscriptionResolver(subscriptions);
@@ -203,7 +203,7 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     }
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName } = {}) => {
     let state;
     return authenticate({ clientId, clientSecret, tenantId, interactiveLoginHandler }).then(({ credentials, interactive, subscriptions }) => {
         const accessToken = credentials.tokenCache._entries[0].accessToken;
@@ -232,9 +232,9 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactive
         return resolveSubscription(subscriptions, subscriptionId, subscriptionResolver);
     }).then(({ id, tenantId }) => {
         state.subscriptionId = id;
-        state.clientFactory = (clientConstructor) => { 
+        state.clientFactory = (clientConstructor) => {
             const client = Reflect.construct(clientConstructor, [state.credentials, id]);
-            client.addUserAgentInfo(SERVICE_NAME);
+            client.addUserAgentInfo(serviceName || SERVICE_NAME);
             return client;
         };
 
