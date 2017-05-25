@@ -16,7 +16,7 @@ const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrinci
 const { name: SERVICE_NAME } = require("./package.json");
 
 const DEFAULT_INTERACTIVE_LOGIN_HANDLER = (code) => {
-    console.log(`Navigate to ${INTERACTIVE_LOGIN_URL} and authenticate using the following code (that was copied to your clipboard!): ${code}`);
+    console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
 };
 
 function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_CLIENT_ID,
@@ -27,43 +27,34 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
         let interactive = false;
 
         if (clientId && clientSecret && tenantId) {
-            const errorMessage = "The specified Azure credentials don't appear to be valid. Please check them and try authenticating again";
-            azure.loginWithServicePrincipalSecret(clientId, clientSecret, tenantId, handle(errorMessage));
+            try {
+                azure.loginWithServicePrincipalSecret(clientId, clientSecret, tenantId, resolvePromise);
+            } catch (error) {
+                reject(new Error("The specified Azure credentials don't appear to be valid. Please check them and try authenticating again"));
+            }
         } else {
-            if (!fse.existsSync(SERVICE_PRINCIPAL_FILE)) { 
-                return loginInteractively();
-            }              
-
-            const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);  
-            
-            keytar.getPassword(SERVICE_NAME, id).then((secret) => {
-                if (!secret) {
-                    // The secret has been deleted, while the SP file still exists...
-                    fse.removeSync(SERVICE_PRINCIPAL_FILE);
-                    return loginInteractively();
-                }    
-
-                azure.loginWithServicePrincipalSecret(id, secret, tenantId, handle(() => {
-                    // The SP is either invalid or expired, but since the end-user doesn't
-                    // know about this file, let's simply delete it and move on to interactive auth.
-                    fse.removeSync(SERVICE_PRINCIPAL_FILE);
-                    keytar.deletePassword(SERVICE_NAME, id).then(loginInteractively);
-                }));
-            }); 
-        }
-
-        function handle(onError) {
-            return (error, credentials, subscriptions) => {
-                if (error) {
-                    if (typeof onError === "string") {
-                        reject(new Error(onError));
+            if (fse.existsSync(SERVICE_PRINCIPAL_FILE)) {                
+                const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);  
+                
+                keytar.getPassword(SERVICE_NAME, id).then((secret) => {
+                    if (secret) {
+                        try {     
+                            azure.loginWithServicePrincipalSecret(id, secret, tenantId, resolvePromise); 
+                        } catch (error) {
+                            // The SP is either invalid or expired, but since the end-user doesn't
+                            // know about this file, let's simply delete it and move on to interactive auth.
+                            fse.removeSync(SERVICE_PRINCIPAL_FILE);
+                            keytar.deletePassword(SERVICE_NAME, id).then(loginInteractively);
+                        }
                     } else {
-                        onError();
+                        // The secret has been deleted, while the SP file still exists...
+                        fse.removeSync(SERVICE_PRINCIPAL_FILE);
+                        loginInteractively();
                     }
-                } else {
-                    resolve({ credentials, subscriptions, interactive });
-                }
-            };
+                });
+            } else {
+                loginInteractively();
+            }   
         }
 
         function loginInteractively() {
@@ -78,7 +69,11 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
             };
 
-            azure.interactiveLogin({ userCodeResponseLogger }, handle("An error occured during the authentication process. Please try again."));
+            azure.interactiveLogin({ userCodeResponseLogger }, resolvePromise);
+        }
+
+        function resolvePromise(error, credentials, subscriptions) {
+            resolve({ credentials, subscriptions, interactive });
         }
     });
 }
@@ -172,39 +167,39 @@ function promptForSubscription(subscriptions) {
 }
 
 function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || env.ARM_SUBSCRIPTION_ID, subscriptionResolver) {
+    // Regardless if the user has specified an exact subscription ID or not, if there
+    // aren't any subscriptions associated with their account, we should fail immediately.
+    if (subscriptions.length === 0) {
+        return Promise.reject(new Error("There aren't any subscriptions associated with this Azure account"));
+    }
+
+    // If a specific subscription ID was requested, then force it
+    // to be used, even if it isn't valid for the current account
     if (subscriptionId) {
-        return promiseForSubscription(subscriptionId);
-    }
-    
-    switch (subscriptions.length) {
-        case 0:
-            return Promise.reject(new Error("There aren't any subscriptions associated with this Azure account"));
-        
-        case 1:
-            return Promise.resolve(subscriptions[0]);
-
-        default:
-            if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
-                try {
-                    const profile = fse.readJsonSync(AZ_CLI_PROFILE_FILE);
-                    return promiseForSubscription(profile.subscriptions.find((sub) => sub.isDefault).id);
-                } catch (error) {
-                    return Promise.reject(error);
-                }
-            } else if (subscriptionResolver) {
-                return subscriptionResolver(subscriptions);
-            } else {
-                return Promise.reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
-            }
-    }
-
-    function promiseForSubscription(subscriptionId) {
         const subscription = subscriptions.find((sub) => sub.id === subscriptionId);
         if (subscription) {
             return Promise.resolve(subscription);
         } else {
-            return Promise.reject(new Error(`The specified subscription ID isn't associated with your Azure account: ${subscriptionId}`));
-        };
+            return Promise.reject(`The specified subscription ID isn't associated with your Azure account: ${subscriptionId}`);
+        }
+    } else if (subscriptions.length === 1) {  
+        return Promise.resolve(subscriptions[0]);
+    } else if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
+        // If the user has Az CLI installed, which is configured with a default
+        // subscription that is associated with the current account, then use it
+        const profile = fse.readJsonSync(AZ_CLI_PROFILE_FILE);
+        const defaultSubscription = profile.subscriptions.find((sub) => sub.isDefault);
+        if (defaultSubscription && subscriptions.find((sub) => sub.id === defaultSubscription.id)) {
+            return Promise.resolve(defaultSubscription)
+        }
+    }
+    
+    // There's no way to infer the user's preferred subscription, 
+    // so we have to prompt them to select one
+    if (subscriptionResolver) {
+        return subscriptionResolver(subscriptions);
+    } else {
+        return Promise.reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
     }
 }
 
