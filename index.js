@@ -16,7 +16,7 @@ const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrinci
 const { name: SERVICE_NAME } = require("./package.json");
 
 const DEFAULT_INTERACTIVE_LOGIN_HANDLER = (code) => {
-    console.log("Paste the auth code (that was copied to your clipboard!) into the launched browser, and complete the login process.");
+    console.log(`Open a browser to ${INTERACTIVE_LOGIN_URL} and provide the following code (which is copied to your clipboard!) to complete the login process: ${code}`);
 };
 
 function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_CLIENT_ID,
