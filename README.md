@@ -66,7 +66,7 @@ While the primary use case of the `login` method is to call it without any argum
 
 * *clientSecret* - The password/secret of the service principal that should be used to authenticate with Azure.
 
-* *interactiveLoginHandler* - A function that will be called whenever an interactive login occurs. `az-login` will acquire the "device code", copy it to the clipboard, and then execute this function, passing in the copied device code. This allows consumers of `az-login` to customize how they display this information to their end-users. This function is called syncronously, and afterwards, will immediately launch the end-users default browser to the neccessary authentication page (`https://aka.ms/devicelogin`). 
+* *interactiveLoginHandler* - A function that will be called whenever an interactive login occurs. `az-login` will acquire the "device code", copy it to the clipboard, and then execute this function, passing in the copied device code. This allows consumers of `az-login` to customize how they display this information to their end-users. This function is called syncronously, and afterwards, will immediately launch the end-users default browser to the neccessary authentication page (`https://aka.ms/devicelogin`).
 
     ```javascript
     const { login } = require("az-login");
@@ -78,6 +78,8 @@ While the primary use case of the `login` method is to call it without any argum
 * *subscriptionId* - The ID of the subscription that should be auto-selected for managing the Azure account. Setting this "disables" the logic for attempting to resolve a subscription ID automatically and/or prompting the user for a selection.
 
 * *tenantId* - The ID of the Azure Active Directory (AAD) tenant that the specified service principal is defined within.
+
+* *serviceName* - Provide a custom service name that will be included in the User Agent string for tracking.
 
 #### LoginResult
 
@@ -91,7 +93,7 @@ After the authentication process is successfully completed, the `Promise` return
     clientFactory<T>(azureClientConstructor: (credentials, subscriptionId): T): T
     ```
 
-* *credentials* - Provides the opaque credentials object that represents a succesful authentication session, and can be provided directly to any management client constructor within the Azure SDK (along with the `subscriptionId`). The following sample illustrates what it looks like when not using the `clientFactory`: 
+* *credentials* - Provides the opaque credentials object that represents a succesful authentication session, and can be provided directly to any management client constructor within the Azure SDK (along with the `subscriptionId`). The following sample illustrates what it looks like when not using the `clientFactory`:
 
     ```javascript
     const { login } = require("az-login");
