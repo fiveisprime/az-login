@@ -26,35 +26,45 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
     return new Promise((resolve, reject) => {
         let interactive = false;
 
+        // If a specific identity was specified, then
+        // attempt to use it and fail if it's invalid
         if (clientId && clientSecret && tenantId) {
-            try {
-                azure.loginWithServicePrincipalSecret(clientId, clientSecret, tenantId, resolvePromise);
-            } catch (error) {
-                reject(new Error("The specified Azure credentials don't appear to be valid. Please check them and try authenticating again"));
-            }
+            const errorMessage = "The specified Azure credentials don't appear to be valid. Please check them and try authenticating again";
+            azure.loginWithServicePrincipalSecret(clientId, clientSecret, tenantId, handle(errorMessage));
         } else {
-            if (fse.existsSync(SERVICE_PRINCIPAL_FILE)) {
-                const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);
-
-                keytar.getPassword(SERVICE_NAME, id).then((secret) => {
-                    if (secret) {
-                        try {
-                            azure.loginWithServicePrincipalSecret(id, secret, tenantId, resolvePromise);
-                        } catch (error) {
-                            // The SP is either invalid or expired, but since the end-user doesn't
-                            // know about this file, let's simply delete it and move on to interactive auth.
-                            fse.removeSync(SERVICE_PRINCIPAL_FILE);
-                            keytar.deletePassword(SERVICE_NAME, id).then(loginInteractively);
-                        }
-                    } else {
-                        // The secret has been deleted, while the SP file still exists...
-                        fse.removeSync(SERVICE_PRINCIPAL_FILE);
-                        loginInteractively();
-                    }
-                });
-            } else {
-                loginInteractively();
+            if (!fse.existsSync(SERVICE_PRINCIPAL_FILE)) {
+                return loginInteractively();
             }
+
+            const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);
+            keytar.getPassword(SERVICE_NAME, id).then((secret) => {
+                if (!secret) {
+                    // The secret has been deleted, while the SP file still exists...
+                    fse.removeSync(SERVICE_PRINCIPAL_FILE);
+                    return loginInteractively();
+                }
+
+                azure.loginWithServicePrincipalSecret(id, secret, tenantId, handle(() => {
+                    // The SP is either invalid or expired, but since the end-user doesn't
+                    // know about this file, let's simply delete it and move on to interactive auth.
+                    fse.removeSync(SERVICE_PRINCIPAL_FILE);
+                    keytar.deletePassword(SERVICE_NAME, id).then(loginInteractively);
+                }));
+            });
+        }
+
+        function handle(onError) {
+            return (error, credentials, subscriptions) => {
+                if (error) {
+                    if (typeof onError === "string") {
+                        reject(new Error(onError));
+                    } else {
+                         onError();
+                    }
+                 } else {
+                    resolve({ credentials, subscriptions, interactive });
+                }
+            };
         }
 
         function loginInteractively() {
@@ -70,10 +80,6 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
             };
 
             azure.interactiveLogin({ userCodeResponseLogger }, resolvePromise);
-        }
-
-        function resolvePromise(error, credentials, subscriptions) {
-            resolve({ credentials, subscriptions, interactive });
         }
     });
 }
