@@ -1,7 +1,9 @@
 const { login } = require("../");
 const { ResourceManagementClient } = require("azure-arm-resource");
 
-login().then(({ clientFactory }) => {
+!async function () {
+    const { clientFactory } = await login();
     const { resourceGroups } = clientFactory(ResourceManagementClient);
-    return resourceGroups.list();
-}).then((groups) => console.log(groups));
+
+    console.log(await resourceGroups.list());
+}();

@@ -7,6 +7,9 @@
   "keywords": [
     "azure"
   ],
+  "scripts": {
+    "test": "node ./examples"
+  },
   "author": "Jonathan Carter",
   "license": "MIT",
   "dependencies": {
