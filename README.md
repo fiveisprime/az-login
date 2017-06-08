@@ -81,6 +81,8 @@ While the primary use case of the `login` method is to call it without any argum
 
 * *serviceName* - Provide a custom service name that will be included in the User Agent string for tracking.
 
+* *serviceClientId* - Provide a custom Azure AD client ID that will be used when presenting the end-user with the consent screen, during an interactive login. If unspecified, the "Microsoft Cross Platform CLI" identity will be used, which may be confusing.
+
 #### LoginResult
 
 After the authentication process is successfully completed, the `Promise` returned by the `login` method will resolve with an object that includes the following properties:
