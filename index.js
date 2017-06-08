@@ -80,7 +80,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
             };
 
-            azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, resolvePromise);
+            azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, handle("The interactive login process failed. Please try again"));
         }
     });
 }
