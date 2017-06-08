@@ -22,7 +22,8 @@ const DEFAULT_INTERACTIVE_LOGIN_HANDLER = (code) => {
 function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_CLIENT_ID,
                         clientSecret = env.azureServicePrincipalPassword || env.ARM_CLIENT_SECRET,
                         tenantId = env.azureServicePrincipalTenantId || env.ARM_TENANT_ID,
-                        interactiveLoginHandler = DEFAULT_INTERACTIVE_LOGIN_HANDLER }) {
+                        interactiveLoginHandler = DEFAULT_INTERACTIVE_LOGIN_HANDLER,
+                        serviceClientId }) {
     return new Promise((resolve, reject) => {
         let interactive = false;
 
@@ -79,7 +80,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
             };
 
-            azure.interactiveLogin({ userCodeResponseLogger }, resolvePromise);
+            azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, resolvePromise);
         }
     });
 }
@@ -209,9 +210,9 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     }
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId } = {}) => {
     let state;
-    return authenticate({ clientId, clientSecret, tenantId, interactiveLoginHandler }).then(({ credentials, interactive, subscriptions }) => {
+    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler }).then(({ credentials, interactive, subscriptions }) => {
         const accessToken = credentials.tokenCache._entries[0].accessToken;
 
         state = {
