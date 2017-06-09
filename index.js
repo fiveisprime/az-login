@@ -60,7 +60,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                     if (typeof onError === "string") {
                         reject(new Error(onError));
                     } else if (typeof onError === "function") {
-                         onError(error);
+                        onError(error);
                     } else {
                         reject(error);
                     }
