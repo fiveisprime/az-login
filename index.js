@@ -59,8 +59,10 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 if (error) {
                     if (typeof onError === "string") {
                         reject(new Error(onError));
+                    } else if (typeof onError === "function") {
+                         onError(error);
                     } else {
-                         onError();
+                        reject(error);
                     }
                  } else {
                     resolve({ credentials, subscriptions, interactive });
@@ -80,7 +82,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
             };
 
-            azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, handle("The interactive login process failed. Please try again"));
+            azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, handle());
         }
     });
 }
