@@ -39,7 +39,7 @@ const { resourceGroups } = clientFactory(ResourceManagementClient);
 const groups = await resourceGroups.list();
 ```
 
-> Note: The above code sample is using [`async/await`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function) (since they make async code way more readable!), which requires Node.js 7.6+. If you're using an older version of Node.js, you can simply use the [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) returned by the `login` method, and call `.then()` on it to get the `clientFactory`.
+> Note: The above code sample is using [`async/await`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function) (since they make async code way more readable!), which requires Node.js 7.6+. If you're using an older version of Node.js (or you're not using TypeScript/Babel to transpile it), you can simply use the [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) returned by the `login` method, and call `.then()` on it to get the `clientFactory`.
 
 If at some later point, you'd like to clear the local auth state from the current machine (e.g. in response to a `Logout` command), you can import and call the `logout` method, and rest assured that no credentials have been "leaked" unexpectedly.
 
@@ -50,7 +50,7 @@ await logout();
 
 If you'd like to check out a simple example, and play around with this module, you can refer to `examples\index.js` file, which demonstrates how to login, and then retrieve the list of resource groups associated with the Azure account used to authenticate with.
 
-## API Reference
+## API Referencek
 
 The `az-login` module exports the following methods:
 
