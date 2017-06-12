@@ -2,6 +2,14 @@
 
 The `az-login` module provides a simple way to add authentication to a Node.js-based automation script, CLI tool, VS Code extension, etc. that manages Azure resources on behalf of yourself and/or end-users. It is meant to compliment the already awesome [Azure SDK for Node](https://github.com/Azure/azure-sdk-for-node) (which provides the actual client APIs for managing Azure resources), by means of an opinionated and exploratory login experience.
 
+## Pre-requisites
+
+* [Node.js](https://nodejs.org/en/) v6.9.0+ (which is the current LTS release, and you should be using anyways!), and the platform-specific tools needed to compile native NPM modules *(which you may already have)*:
+
+    * Windows - Run the following in an elevated prompt (`cmd.exe` or PowerShell): `npm i -g windows-build-tools`
+    * Ubuntu - Run `sudo apt-get install build-essential`
+    * macOS - Install Xcode
+
 ## Getting Started
 
 In order to install the `az-login` module, simply run the following command within your app's directory:
