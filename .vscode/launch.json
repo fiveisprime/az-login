@@ -8,7 +8,8 @@
             "program": "${workspaceRoot}/examples/index.js",
             "protocol": "inspector",
             "env": {
-                "azureServicePrincipalClientId": ""
+                "azureServicePrincipalClientId": "",
+                "azureSubId": ""
             }
         }
     ]

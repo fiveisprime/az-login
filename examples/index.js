@@ -16,4 +16,8 @@ login().then(({ clientFactory }) => {
         const prettyGroups = util.inspect(groups, { colors: true });
         console.log(prettyGroups);
     });
+}).catch((error) => {
+    // Optionally, catch any errors that occur
+    // as a part of the login process.
+    console.log(error);
 });

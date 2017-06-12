@@ -87,21 +87,28 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
     });
 }
 
+function createCredentials(baseCredentials, tenantId, graphToken = false) {
+    const credentialOptions = {
+        domain: tenantId,
+        username: baseCredentials.username,
+        tokenCache: baseCredentials.tokenCache,
+        environment: baseCredentials.environment
+    };
+
+    if (graphToken) {
+        credentialOptions.tokenAudience = "graph";
+    }
+
+    return new azure.DeviceTokenCredentials(credentialOptions);
+}
+
 function createServicePrincipal(credentials, tenantId, subscriptionId) {
     return new Promise((resolve, reject) => {
         const authorization = require("azure-arm-authorization");
         const graph = require("azure-graph");
         const moment = require("moment");
 
-        const credentialOptions = {
-            domain: tenantId,
-            tokenAudience: "graph",
-            username: credentials.username,
-            tokenCache: credentials.tokenCache,
-            environment: credentials.environment
-        };
-
-        const graphCredentials = new azure.DeviceTokenCredentials(credentialOptions);
+        const graphCredentials = createCredentials(credentials, tenantId, true);
         const graphClient = new graph(graphCredentials, tenantId);
 
         const servicePrincipalName = `http://${generateUuid()}`;
@@ -151,10 +158,14 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
                     roleAssignments.create(scope, generateUuid(), roleAssignmentOptions).then(() => {
                         fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, tenantId });
                         keytar.setPassword(SERVICE_NAME, sp.appId, servicePrincipalPassword).then(resolve);
-                    }).catch(() => {
-                        // This can fail due to the SP not having
-                        // be fully created yet, so try again.
-                        setTimeout(createRoleAssignment, 1000);
+                    }).catch((error) => {
+                        if (error.code && error.code === "PrincipalNotFound") {
+                            // This can fail due to the SP not having
+                            // be fully created yet, so try again.
+                            setTimeout(createRoleAssignment, 1000);
+                        } else {
+                            reject(error);
+                        }
                     })
                 }();
             });
@@ -175,41 +186,51 @@ function promptForSubscription(subscriptions) {
     });
 }
 
+const SUBSCRIPTION_DISABLED_STATE = "Disabled";
 function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || env.ARM_SUBSCRIPTION_ID, subscriptionResolver) {
-    // Regardless if the user has specified an exact subscription ID or not, if there
-    // aren't any subscriptions associated with their account, we should fail immediately.
-    if (subscriptions.length === 0) {
-        return Promise.reject(new Error("There aren't any subscriptions associated with this Azure account"));
-    }
+    return new Promise((resolve, reject) => {
+        // Regardless if the user has specified an exact subscription ID or not, if there
+        // aren't any subscriptions associated with their account, we should fail immediately.
+        if (subscriptions.length === 0) {
+            return reject(new Error("There aren't any subscriptions associated with this Azure account"));
+        }
 
-    // If a specific subscription ID was requested, then force it
-    // to be used, even if it isn't valid for the current account
-    if (subscriptionId) {
-        const subscription = subscriptions.find((sub) => sub.id === subscriptionId);
-        if (subscription) {
-            return Promise.resolve(subscription);
+        // If a specific subscription ID was requested, then force it
+        // to be used, even if it isn't valid for the current account
+        if (subscriptionId) {
+            const subscription = subscriptions.find((sub) => sub.id === subscriptionId);
+            if (!subscription) {
+                return reject(new Error(`The specified subscription ID isn't associated with your Azure account: ${subscriptionId}`));
+            } else if (subscription.state === SUBSCRIPTION_DISABLED_STATE) {
+                return reject(new Error(`The specified subscription is currently disabled: ${subscriptionId}`))
+            } else {
+                return resolve(subscription);
+            }
+        } else if (subscriptions.length === 1) {
+            const subscription = subscriptions[0];
+            if (subscription.state === SUBSCRIPTION_DISABLED_STATE) {
+                return reject(new Error(`This Azure account only has a single subscription, but it is currently disabled: ${subscription.id}`))
+            } else {
+                return resolve(subscription);
+            }
+        } else if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
+            // If the user has Az CLI installed, which is configured with a default
+            // subscription that is associated with the current account, then use it
+            const profile = fse.readJsonSync(AZ_CLI_PROFILE_FILE);
+            const defaultSubscription = profile.subscriptions.find((sub) => sub.isDefault);
+            if (defaultSubscription && subscriptions.find((sub) => sub.id === defaultSubscription.id)) {
+                return resolve(defaultSubscription);
+            }
+        }
+
+        // There's no way to infer the user's preferred subscription,
+        // so we have to prompt them to select one
+        if (subscriptionResolver) {
+            subscriptionResolver(subscriptions).then(resolve, reject);
         } else {
-            return Promise.reject(`The specified subscription ID isn't associated with your Azure account: ${subscriptionId}`);
+            reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
         }
-    } else if (subscriptions.length === 1) {
-        return Promise.resolve(subscriptions[0]);
-    } else if (fse.existsSync(AZ_CLI_PROFILE_FILE)) {
-        // If the user has Az CLI installed, which is configured with a default
-        // subscription that is associated with the current account, then use it
-        const profile = fse.readJsonSync(AZ_CLI_PROFILE_FILE);
-        const defaultSubscription = profile.subscriptions.find((sub) => sub.isDefault);
-        if (defaultSubscription && subscriptions.find((sub) => sub.id === defaultSubscription.id)) {
-            return Promise.resolve(defaultSubscription)
-        }
-    }
-
-    // There's no way to infer the user's preferred subscription,
-    // so we have to prompt them to select one
-    if (subscriptionResolver) {
-        return subscriptionResolver(subscriptions);
-    } else {
-        return Promise.reject(new Error("This Azure account has multiple subscriptions, and there's no way to resolve which one to use"));
-    }
+    });
 }
 
 exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId } = {}) => {
@@ -248,6 +269,10 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactive
         };
 
         if (state.interactive) {
+            // The credentials that were created via the interactive login process
+            // aren't associated with any specific tenant, so let's re-create
+            // them now that the user has specified the tenant they want to use.
+            state.credentials = createCredentials(state.credentials, tenantId);
             return createServicePrincipal(state.credentials, tenantId, id);
         }
     }).then(() => { return state; });
@@ -260,6 +285,8 @@ exports.logout = () => {
                 return resolve(false);
             }
 
+            // TODO: Attempt to delete this SP from the user's
+            // Azure account, before deleting the file on disk
             fse.unlink(SERVICE_PRINCIPAL_FILE, (error) => {
                 if (error) {
                     reject(error);
