@@ -10,12 +10,16 @@ In order to install the `az-login` module, simply run the following command with
 npm i --save az-login
 ```
 
+> Note: If you're using NPM 5+, you can omit the `--save` flag, since installed dependencies are automatically saved!
+
 From within your app code, import the `login` method from the `az-login` module, as well as any management APIs that you need from the Azure SDK (e.g. `azure-arm-resource`):
 
 ```javascript
 const { login } = require("az-login");
 const { ResourceManagementClient } = require("azure-arm-resource");
 ```
+
+> Note: Refer to the [documentation](http://azure.github.io/azure-sdk-for-node/) to determine all of the various management scenarios that the Azure SDK enables (e.g. creating VMs, configuring DNS, etc.)
 
 Call the `login` method in order to initiate the authentication process ([details](#login)), and then use the returned `clientFactory` function to create automatically authenticated instances of the desired Azure management clients. It's that simple!
 
@@ -27,12 +31,16 @@ const { resourceGroups } = clientFactory(ResourceManagementClient);
 const groups = await resourceGroups.list();
 ```
 
+> Note: The above code sample is using [`async/await`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function) (since they make async code way more readable!), which requires Node.js 7.6+. If you're using an older version of Node.js, you can simply use the [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) returned by the `login` method, and call `.then()` on it to get the `clientFactory`.
+
 If at some later point, you'd like to clear the local auth state from the current machine (e.g. in response to a `Logout` command), you can import and call the `logout` method, and rest assured that no credentials have been "leaked" unexpectedly.
 
 ```javascript
 const { logout } = require("az-login");
 await logout();
 ```
+
+If you'd like to check out a simple example, and play around with this module, you can refer to `examples\index.js` file, which demonstrates how to login, and then retrieve the list of resource groups associated with the Azure account used to authenticate with.
 
 ## API Reference
 
