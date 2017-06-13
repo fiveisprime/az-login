@@ -50,7 +50,7 @@ await logout();
 
 If you'd like to check out a simple example, and play around with this module, you can refer to `examples\index.js` file, which demonstrates how to login, and then retrieve the list of resource groups associated with the Azure account used to authenticate with.
 
-## API Referencek
+## API Reference
 
 The `az-login` module exports the following methods:
 
