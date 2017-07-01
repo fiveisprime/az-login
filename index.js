@@ -15,15 +15,12 @@ const SERVICE_PRINCIPAL_FILE = path.join(CONFIG_DIRECTORY, "azloginServicePrinci
 
 const { name: SERVICE_NAME } = require("./package.json");
 
-const DEFAULT_INTERACTIVE_LOGIN_HANDLER = (code) => {
-    console.log(`Open a browser to ${INTERACTIVE_LOGIN_URL} and provide the following code (which is copied to your clipboard!) to complete the login process: ${code}`);
-};
-
 function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_CLIENT_ID,
                         clientSecret = env.azureServicePrincipalPassword || env.ARM_CLIENT_SECRET,
                         tenantId = env.azureServicePrincipalTenantId || env.ARM_TENANT_ID,
-                        interactiveLoginHandler = DEFAULT_INTERACTIVE_LOGIN_HANDLER,
-                        serviceClientId }) {
+                        interactiveLoginHandler,
+                        serviceClientId,
+                        suppressBrowser = false }) {
     return new Promise((resolve, reject) => {
         let interactive = false;
 
@@ -74,12 +71,16 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
             interactive = true;
 
             const userCodeResponseLogger = (message) => {
+                // Parse out the device code and copy it to the clipboard.
                 const [code] = message.match(/[A-Z0-9]{9,}/);
                 require("copy-paste").copy(code);
 
-                interactiveLoginHandler(code);
+                const newMessage = `Open a browser to ${INTERACTIVE_LOGIN_URL} and provide the following code (which is copied to your clipboard!) to complete the login process: ${code}`;
+                interactiveLoginHandler ? interactiveLoginHandler(code, newMessage) : console.log(newMessage);
 
-                require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
+                if (!suppressBrowser) {
+                    require("opn")(INTERACTIVE_LOGIN_URL, { wait: false });
+                }
             };
 
             azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, handle());
@@ -233,9 +234,9 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     });
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, suppressBrowser } = {}) => {
     let state;
-    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler }).then(({ credentials, interactive, subscriptions }) => {
+    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
         const accessToken = credentials.tokenCache._entries[0].accessToken;
 
         state = {
@@ -262,8 +263,8 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactive
         return resolveSubscription(subscriptions, subscriptionId, subscriptionResolver);
     }).then(({ id, tenantId }) => {
         state.subscriptionId = id;
-        state.clientFactory = (clientConstructor) => {
-            const client = Reflect.construct(clientConstructor, [state.credentials, id]);
+        state.clientFactory = (clientConstructor, ...args) => {
+            const client = Reflect.construct(clientConstructor, [state.credentials, id, ...args]);
             client.addUserAgentInfo(serviceName || SERVICE_NAME);
             return client;
         };

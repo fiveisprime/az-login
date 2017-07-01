@@ -1,7 +1,7 @@
 {
   "name": "az-login",
-  "version": "0.2.3",
-  "description": "A simple helper utlity for logging into an Azure account from Node.js",
+  "version": "0.3.0",
+  "description": "A simple helper library for logging into an Azure account from Node.js",
   "main": "index.js",
   "repository": "https://github.com/lostintangent/az-login.git",
   "keywords": [
