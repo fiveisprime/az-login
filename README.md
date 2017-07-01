@@ -126,8 +126,6 @@ After the authentication process is successfully completed, the `Promise` return
     const result = await resourceGroups.createOrUpdate("MyResourceGroup", { location: "WestUS" });
     ```
 
-* *request* - This provides an instance of the `request` module (if the host app is using it), that is already pre-configured with the right HTTP `Authorization` header to begin making Azure REST API calls manually. This is for advanced scenarios only, and provides a simpler means of making REST calls, then accessing the `accessToken` value directly.
-
 * *subscriptionId* - The ID of the subscription that has been selected for this account as part of the login process. This value can be provided directly to any management client constructor within the Azure SDK, which will dictate which subscription (if the authenticated account has more than one) will be the target of any management operations (e.g. create a resource group). See the documentation above for the `credentials` value, to see how this is used.
 
 ### logout

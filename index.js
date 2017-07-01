@@ -237,24 +237,11 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
 exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, suppressBrowser } = {}) => {
     let state;
     return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
-        const accessToken = credentials.tokenCache._entries[0].accessToken;
-
         state = {
-            accessToken,
+            accessToken: credentials.tokenCache._entries[0].accessToken,
             credentials,
             interactive
         };
-
-        // If the consuming app is using request, that return a specialized
-        // version of it, that comes pre-configured with the right bearer
-        // token to begin making Azure REST API calls with.
-        if (require.resolve("request")) {
-            state.request = require("request").defaults({
-                headers: {
-                    Authorization: `Bearer ${accessToken}`
-                }
-            });
-        }
 
         if (!subscriptionResolver && process.stdout.isTTY) {
             subscriptionResolver = promptForSubscription;
