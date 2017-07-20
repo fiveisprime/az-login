@@ -1,6 +1,5 @@
 const azure = require("ms-rest-azure");
 const fse = require("fs-extra");
-const keytar = require("keytar");
 const os = require("os");
 const path = require("path");
 const { generateUuid } = azure;
@@ -19,6 +18,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                         clientSecret = env.azureServicePrincipalPassword || env.ARM_CLIENT_SECRET,
                         tenantId = env.azureServicePrincipalTenantId || env.ARM_TENANT_ID,
                         interactiveLoginHandler,
+                        secretStore,
                         serviceClientId,
                         suppressBrowser = false }) {
     return new Promise((resolve, reject) => {
@@ -35,7 +35,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
             }
 
             const { id, tenantId } = fse.readJSONSync(SERVICE_PRINCIPAL_FILE);
-            keytar.getPassword(SERVICE_NAME, id).then((secret) => {
+            secretStore.getPassword(SERVICE_NAME, id).then((secret) => {
                 if (!secret) {
                     // The secret has been deleted, while the SP file still exists...
                     fse.removeSync(SERVICE_PRINCIPAL_FILE);
@@ -46,7 +46,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                     // The SP is either invalid or expired, but since the end-user doesn't
                     // know about this file, let's simply delete it and move on to interactive auth.
                     fse.removeSync(SERVICE_PRINCIPAL_FILE);
-                    keytar.deletePassword(SERVICE_NAME, id).then(loginInteractively);
+                    secretStore.deletePassword(SERVICE_NAME, id).then(loginInteractively);
                 }));
             });
         }
@@ -103,7 +103,7 @@ function createCredentials(baseCredentials, tenantId, graphToken = false) {
     return new azure.DeviceTokenCredentials(credentialOptions);
 }
 
-function createServicePrincipal(credentials, tenantId, subscriptionId) {
+function createServicePrincipal(credentials, tenantId, subscriptionId, secretStore) {
     return new Promise((resolve, reject) => {
         const authorization = require("azure-arm-authorization");
         const graph = require("azure-graph");
@@ -158,7 +158,7 @@ function createServicePrincipal(credentials, tenantId, subscriptionId) {
                 !function createRoleAssignment() {
                     roleAssignments.create(scope, generateUuid(), roleAssignmentOptions).then(() => {
                         fse.writeJSONSync(SERVICE_PRINCIPAL_FILE, { id: sp.appId, tenantId });
-                        keytar.setPassword(SERVICE_NAME, sp.appId, servicePrincipalPassword).then(resolve);
+                        secretStore.setPassword(SERVICE_NAME, sp.appId, servicePrincipalPassword).then(resolve);
                     }).catch((error) => {
                         if (error.code && error.code === "PrincipalNotFound") {
                             // This can fail due to the SP not having
@@ -234,9 +234,9 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     });
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, suppressBrowser } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, secretStore = require("./fileSecretStore"), suppressBrowser } = {}) => {
     let state;
-    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
+    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler, secretStore, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
         state = {
             accessToken: credentials.tokenCache._entries[0].accessToken,
             credentials,
@@ -261,7 +261,7 @@ exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactive
             // aren't associated with any specific tenant, so let's re-create
             // them now that the user has specified the tenant they want to use.
             state.credentials = createCredentials(state.credentials, tenantId);
-            return createServicePrincipal(state.credentials, tenantId, id);
+            return createServicePrincipal(state.credentials, tenantId, id, secretStore);
         }
     }).then(() => { return state; });
 };
