@@ -4,11 +4,7 @@ The `az-login` module provides a simple way to add authentication to a Node.js-b
 
 ## Pre-requisites
 
-* [Node.js](https://nodejs.org/en/) v6.9.0+ (which is the current LTS release, and you should be using anyways!), and the platform-specific tools needed to compile native NPM modules *(which you may already have)*:
-
-    * Windows - Run the following in an elevated prompt (`cmd.exe` or PowerShell): `npm i -g windows-build-tools`
-    * Ubuntu - Run `sudo apt-get install build-essential`
-    * macOS - Install Xcode
+* [Node.js](https://nodejs.org/en/) v6.9.0+ (which is the current LTS release, and you should be using anyways!)
 
 ## Getting Started
 
