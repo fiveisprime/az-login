@@ -174,6 +174,17 @@ function createServicePrincipal(credentials, tenantId, subscriptionId, secretSto
     });
 };
 
+// Checks to see whether the specified module
+// is currently available in the running environment.
+function isModuleAvailable(moduleName) {
+    try {
+        require.resolve(moduleName);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
 function promptForSubscription(subscriptions) {
     return require("inquirer").prompt([{
         name: "subscriptionId",
@@ -185,6 +196,30 @@ function promptForSubscription(subscriptions) {
     }]).then((answers) => {
         return subscriptions.find(({ id }) => id === answers.subscriptionId);
     });
+}
+
+function resolveSecretStore() {
+    // Check to see whether we're currently running
+    // within a VS Code extension, and use it's
+    // secret store if available (it's an experimental API).
+    if (isModuleAvailable("vscode")) {
+        const { credentials } = require("vscode");
+        if (credentials) {
+            return {
+                getPassword: credentials.readSecret,
+                deletePassword: credentials.deleteSecret,
+                setPassword: credentials.writeSecret
+            };
+        }
+    }
+    
+    // If the app is currently using keytar, then use that,
+    // otherwise, fall back to the basic file-based crypto store.
+    if (isModuleAvailable("keytar")) {
+        return require("keytar");
+    } else {
+        return require("./fileSecretStore");
+    }
 }
 
 const SUBSCRIPTION_DISABLED_STATE = "Disabled";
@@ -234,7 +269,7 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     });
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, secretStore = require("./fileSecretStore"), suppressBrowser } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, secretStore = resolveSecretStore(), suppressBrowser } = {}) => {
     let state;
     return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler, secretStore, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
         state = {
