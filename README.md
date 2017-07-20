@@ -92,7 +92,11 @@ While the primary use case of the `login` method is to call it without any argum
         // or simply customize the standard message (e.g. console.log(`[Some Prefix] ${message}`))
     }});
 
-* *secretStore* - An object that represents the secret store that should be used to store the generated Azure service principal after an interactive login is successfully completed. This object should have the same API interface at [`keytar`](https://github.com/atom/node-keytar#docs), and in particular, implement the following three methods: `deletePassword`, `getPassword` and `setPassword`. By default, this library will use a file-based store, which isn't recommended in practice.
+* *secretStore* - An object that represents the secret store that should be used to persist the Azure service principal that is generated after an interactive login is successfully completed. This object should have the same API interface at [`keytar`](https://github.com/atom/node-keytar#docs), and in particular, implement the following three methods: `deletePassword`, `getPassword` and `setPassword`. By default, it will attempt to use the first available option in the following ordered list:
+
+    1. The `vscode.credentials` API, if the running process is a VS Code extension
+    2. The `keytar` module, if the running app has installed it
+    3. A simple, file-based `crypto` store, for all other cases
 
 * *serviceClientId* - Provide a custom Azure AD client ID that will be used when presenting the end-user with the consent screen, during an interactive login. If unspecified, the "Microsoft Cross Platform CLI" identity will be used, which may be confusing.
 
