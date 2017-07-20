@@ -24,8 +24,12 @@ module.exports = {
         return Promise.resolve(decryptedPassword);
     },
     deletePassword(serviceName, account) {
-        fs.existsSync(PASSWORD_FILE) && fs.unlinkSync(PASSWORD_FILE);
-        return Promise.resolve();
+        if (fs.existsSync(PASSWORD_FILE)) {
+            fs.unlinkSync(PASSWORD_FILE);
+            return Promise.resolve(true);
+        } else {
+            return Promise.resolve(false);
+        }
     },
     setPassword(serviceName, account, password) {
         const cipher = crypto.createCipher(CIPHER_ALGORITHM, CIPHER_PASSWORD);
