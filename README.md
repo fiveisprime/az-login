@@ -4,11 +4,7 @@ The `az-login` module provides a simple way to add authentication to a Node.js-b
 
 ## Pre-requisites
 
-* [Node.js](https://nodejs.org/en/) v6.9.0+ (which is the current LTS release, and you should be using anyways!), and the platform-specific tools needed to compile native NPM modules *(which you may already have)*:
-
-    * Windows - Run the following in an elevated prompt (`cmd.exe` or PowerShell): `npm i -g windows-build-tools`
-    * Ubuntu - Run `sudo apt-get install build-essential`
-    * macOS - Install Xcode
+* [Node.js](https://nodejs.org/en/) v6.9.0+ (which is the current LTS release, and you should be using anyways!)
 
 ## Getting Started
 
@@ -91,6 +87,12 @@ While the primary use case of the `login` method is to call it without any argum
         // complete the authentication process in the browser that will be launched
         // or simply customize the standard message (e.g. console.log(`[Some Prefix] ${message}`))
     }});
+
+* *secretStore* - An object that represents the secret store that should be used to persist the Azure service principal that is generated after an interactive login is successfully completed. This object should have the same API interface at [`keytar`](https://github.com/atom/node-keytar#docs), and in particular, implement the following three methods: `deletePassword`, `getPassword` and `setPassword`. By default, it will attempt to use the first available option in the following ordered list:
+
+    1. The `vscode.credentials` API, if the running process is a VS Code extension
+    2. The `keytar` module, if the running app has installed it
+    3. A simple, file-based `crypto` store, for all other cases
 
 * *serviceClientId* - Provide a custom Azure AD client ID that will be used when presenting the end-user with the consent screen, during an interactive login. If unspecified, the "Microsoft Cross Platform CLI" identity will be used, which may be confusing.
 
