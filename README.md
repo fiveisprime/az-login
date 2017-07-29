@@ -94,7 +94,9 @@ While the primary use case of the `login` method is to call it without any argum
     2. The `keytar` module, if the running app has installed it
     3. A simple, file-based `crypto` store, for all other cases
 
-* *serviceClientId* - Provide a custom Azure AD client ID that will be used when presenting the end-user with the consent screen, during an interactive login. If unspecified, the "Microsoft Cross Platform CLI" identity will be used, which may be confusing.
+* *serviceClientId* - Provide a custom Azure AD client ID that will be used when presenting the end-user with the consent screen, during an interactive login. If unspecified, the "Microsoft Cross Platform CLI" identity will be used, which may be confusing. This is an advanced setting and should only be specified if you absolutely know what you're doing. Additionally, if this is set, then *serviceTenantId* must also be specified.
+
+* *serviceTenantId* - The tenant ID associated with the *serviceClientId*, which allows customizing the identity that is displayed when the end-user is doing an interactive login.
 
 * *serviceName* - Provide a custom service name that will be included in the User Agent string for tracking. Defaults to `az-login`.
 

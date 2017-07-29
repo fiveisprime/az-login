@@ -20,6 +20,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                         interactiveLoginHandler,
                         secretStore,
                         serviceClientId,
+                        serviceTenantId,
                         suppressBrowser = false }) {
     return new Promise((resolve, reject) => {
         let interactive = false;
@@ -83,7 +84,7 @@ function authenticate({ clientId = env.azureServicePrincipalClientId || env.ARM_
                 }
             };
 
-            azure.interactiveLogin({ clientId: serviceClientId, userCodeResponseLogger }, handle());
+            azure.interactiveLogin({ clientId: serviceClientId, domain: serviceTenantId, userCodeResponseLogger }, handle());
         }
     });
 }
@@ -269,9 +270,9 @@ function resolveSubscription(subscriptions, subscriptionId = env.azureSubId || e
     });
 }
 
-exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, secretStore = resolveSecretStore(), suppressBrowser } = {}) => {
+exports.login = ({ clientId, clientSecret, tenantId, subscriptionId, interactiveLoginHandler, subscriptionResolver, serviceName, serviceClientId, serviceTenantId, secretStore = resolveSecretStore(), suppressBrowser } = {}) => {
     let state;
-    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, interactiveLoginHandler, secretStore, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
+    return authenticate({ clientId, clientSecret, tenantId, serviceClientId, serviceTenantId, interactiveLoginHandler, secretStore, suppressBrowser }).then(({ credentials, interactive, subscriptions }) => {
         state = {
             accessToken: credentials.tokenCache._entries[0].accessToken,
             credentials,
